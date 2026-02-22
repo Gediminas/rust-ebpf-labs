@@ -3,7 +3,8 @@
 #![allow(dead_code)]
 
 use aya_ebpf::bindings::BPF_F_WRONLY_PROG;
-use aya_ebpf::helpers::bpf_probe_read;
+use aya_ebpf::cty::c_void;
+use aya_ebpf::helpers;
 use aya_ebpf::macros::{kprobe, map};
 use aya_ebpf::programs::{ProbeContext, XdpContext};
 use aya_ebpf::{
@@ -31,9 +32,27 @@ static STAT: PerCpuArray<Stat> = PerCpuArray::with_max_entries(1, BPF_F_RDONLY);
 //     __be32			o_key;
 //     struct iphdr		iph;
 // };
+// https://elixir.bootlin.com/linux/v6.14/source/include/net/ip_tunnels.h#L420
+// __be16 ip_tunnel_parse_protocol(const struct sk_buff *skb);
 #[kprobe]
-pub fn on_ip_tunnel_parse_protocol(ctx: ProbeContext) -> u32 {
+pub fn ip_tunnel_parse_protocol(ctx: ProbeContext) -> u32 {
     debug!(&ctx, "kprobe: ip_tunnel_parse_protocol()");
+
+    let skb: *const c_void = ctx.arg(0).unwrap();
+    // let pid = unsafe { bpf_probe_read(core::ptr::addr_of!(skb)) }.map_err(|err| err as u32)?;
+    //
+    let mut buf = [0u8; 124];
+    let bbb = buf.as_mut_ptr();
+    let bbb = bbb as *mut c_void;
+
+    let x = unsafe { helpers::generated::bpf_probe_read_kernel(bbb, 120, skb) };
+
+    debug!(&ctx, "{}", bbb as u32);
+
+    // let peer_ptr: *const u8 = ctx.arg(ARG_PEER).unwrap();
+    // let key_ptr = unsafe { peer_ptr.offset(WG_PEER_PUB_KEY_OFFSET) } as *const [u8; 32];
+    // let key = unsafe { bpf_probe_read(key_ptr).unwrap_or_default() };
+    // warn!(ctx, "key: {}", key[0]);
 
     // let Some(stat) = STAT.get_ptr_mut(0) else {
     //     error!(&ctx, "STAT failed");
@@ -54,13 +73,14 @@ pub fn on_ip_tunnel_parse_protocol(ctx: ProbeContext) -> u32 {
 // https://elixir.bootlin.com/linux/v6.14/source/net/core/gro.c#L623
 // gro_result_t napi_gro_receive(struct napi_struct *napi, struct sk_buff *skb)
 #[kprobe]
-pub fn on_napi_gro_receive(ctx: ProbeContext) -> u32 {
-    debug!(&ctx, "kprobe: napi_gro_receive()");
+pub fn napi_gro_receive(ctx: ProbeContext) -> u32 {
+    // debug!(&ctx, "kprobe: napi_gro_receive()");
     0
 }
 
 #[kprobe]
-pub fn on_wg_allowedips_insert_v4(ctx: ProbeContext) -> u32 {
+pub fn wg_allowedips_insert_v4(ctx: ProbeContext) -> u32 {
+    warn!(&ctx, "kprobe: wg_allowedips_insert_v4()");
     parse_fn_args(&ctx);
     0
 }
@@ -69,7 +89,7 @@ use aya_ebpf::macros::xdp;
 
 #[xdp]
 fn poc_xdp_test(ctx: XdpContext) -> u32 {
-    warn!(&ctx, "xdp");
+    // warn!(&ctx, "xdp");
     XDP_PASS
 }
 
@@ -100,13 +120,13 @@ fn parse_fn_args(ctx: &ProbeContext) {
     // }
 
     let ip_ptr: *const u32 = ctx.arg(ARG_IP).unwrap();
-    let ip_net = unsafe { bpf_probe_read(ip_ptr).unwrap_or_default() };
+    let ip_net = unsafe { helpers::bpf_probe_read(ip_ptr).unwrap_or_default() };
     let ip_host = u32::from_be(ip_net);
     warn!(ctx, "host: {}", ip_host);
 
     let peer_ptr: *const u8 = ctx.arg(ARG_PEER).unwrap();
     let key_ptr = unsafe { peer_ptr.offset(WG_PEER_PUB_KEY_OFFSET) } as *const [u8; 32];
-    let key = unsafe { bpf_probe_read(key_ptr).unwrap_or_default() };
+    let key = unsafe { helpers::bpf_probe_read(key_ptr).unwrap_or_default() };
     warn!(ctx, "key: {}", key[0]);
 }
 

@@ -14,11 +14,11 @@ use log::{debug, info, warn};
 use tokio::signal;
 
 const HOOK_1: &str = "ip_tunnel_parse_protocol";
-const BEEE_1: &str = "on_ip_tunnel_parse_protocol";
+const BEEE_1: &str = "ip_tunnel_parse_protocol";
 const HOOK_2: &str = "napi_gro_receive";
-const BEEE_2: &str = "on_napi_gro_receive";
+const BEEE_2: &str = "napi_gro_receive";
 const HOOK_3: &str = "wg_allowedips_insert_v4";
-const BEEE_3: &str = "on_wg_allowedips_insert_v4";
+const BEEE_3: &str = "wg_allowedips_insert_v4";
 
 // wg_allowedips_insert_v4
 // ip_tunnel_parse_protocol
